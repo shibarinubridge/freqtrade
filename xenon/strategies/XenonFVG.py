@@ -52,7 +52,7 @@ class XenonFVG(IStrategy):
     plot_config={'main_plot':{'fvg_limit':{'color':'#d9a779'},'fvg_stop':{'color':'#d27d7d'},'fvg_target':{'color':'#83b79c'},'xenon_ema20':{'color':'#929da9'}}}
     def version(self):return 'xenon-fvg-dryrun-1'
     def __init__(self,config):
-        super().__init__(config);self._visual_enabled=False;self._boot_ms=ms(dt.datetime.now(dt.timezone.utc));self._risk={};self._risk_path=pathlib.Path(__file__).resolve().parents[1]/'.runtime/fvg-risk.json'
+        super().__init__(config);self._visual_enabled=False;self._boot_ms=ms(dt.datetime.now(dt.timezone.utc));self._risk={};self._runtime=pathlib.Path(config.get('xenon_runtime_dir') or pathlib.Path(__file__).resolve().parents[1]/'.runtime');self._risk_path=self._runtime/'fvg-risk.json'
     def bot_start(self,**kwargs):
         if self.config.get('dry_run') is not True or self.config.get('force_entry_enable') is not False:raise RuntimeError('XenonFVG requires dry-run and no force entry')
         if getattr(self.config.get('runmode'),'value',self.config.get('runmode')) not in ('dry_run',None):raise RuntimeError('Historical backtesting is not the approved execution model for this port')
@@ -62,7 +62,7 @@ class XenonFVG(IStrategy):
         self._visual_enabled=getattr(self.config.get('runmode'),'value',self.config.get('runmode'))=='dry_run'
         log.warning('XenonFVG enabled for prospective DRY-RUN only. Risk .5%, min planned net1R, GTC nonmarketable Limit, all-taker fees .045%. Source replay PnL is not transferable.')
     def _note(self,*args,**kwargs):
-        if self._visual_enabled:visual_decision(*args,**kwargs)
+        if self._visual_enabled:visual_decision(*args,root=self._runtime/'fvg-visual',**kwargs)
     def _save(self):
         self._risk_path.parent.mkdir(exist_ok=True,mode=0o700);tmp=self._risk_path.with_suffix('.tmp');tmp.write_text(json.dumps(self._risk,indent=2));tmp.replace(self._risk_path)
     def _closed(self,pair,now):
@@ -101,7 +101,7 @@ class XenonFVG(IStrategy):
         closed=[r for r in rows if r['end']<=ms(dt.datetime.now(dt.timezone.utc))]
         if self._visual_enabled:
             if len(closed)!=len(rows):view=detect(coin,closed,trace=True)[2]
-            publish_visual(coin,view,closed,self._boot_ms,self.version())
+            publish_visual(coin,view,closed,self._boot_ms,self.version(),root=self._runtime/'fvg-visual')
         indexes={x['end']:idx for idx,x in zip(df.index,rows)}
         for time,items in events.items():
             for event in items:

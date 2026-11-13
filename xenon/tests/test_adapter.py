@@ -56,3 +56,15 @@ class AdapterTests(unittest.TestCase):
         d=s.populate_entry_trend(d,{});self.assertEqual(d.enter_long.sum(),0);self.assertEqual(d.enter_short.sum(),0);self.assertFalse(s.confirm_trade_entry(pair='BTC/USDC:USDC'))
 
 if __name__=='__main__':unittest.main()
+
+class AccountIsolationTests(unittest.TestCase):
+    def test_registry_has_unique_loopback_ports_and_runtime_databases(self):
+        from accounts import ACCOUNTS,public
+        self.assertEqual(len({a['port'] for a in ACCOUNTS.values()}),len(ACCOUNTS))
+        self.assertEqual(len({str(a['runtime']) for a in ACCOUNTS.values()}),len(ACCOUNTS))
+        for a in public():self.assertNotIn('runtime',a);self.assertNotIn('port',a)
+    def test_clients_are_scoped_and_unimplemented_accounts_cannot_launch(self):
+        self.assertNotEqual(adapter.Client(account_id='fvg').api_base,adapter.Client(account_id='amd').api_base)
+        with self.assertRaises(ValueError):adapter.Client(account_id='../fvg')
+        for name in ['orderblock','amd']:
+            with self.assertRaises(RuntimeError):launcher.prepare(name)

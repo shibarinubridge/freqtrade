@@ -34,7 +34,7 @@ class Relay:
         try:
             auth=json.loads(self.client.auth_path.read_text());token=base64.b64encode((auth['username']+':'+auth['password']).encode()).decode()
             body=json.dumps(job.get('body') or {}).encode() if method=='POST' else None
-            req=urllib.request.Request('http://127.0.0.1:8091/api/v1/'+path,method=method,data=body,headers={'Authorization':'Basic '+token,'Content-Type':'application/json'})
+            req=urllib.request.Request(self.client.api_base+path,method=method,data=body,headers={'Authorization':'Basic '+token,'Content-Type':'application/json'})
             opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
             try:
                 with opener.open(req,timeout=8) as response:status=response.status;raw=response.read(1500001)
