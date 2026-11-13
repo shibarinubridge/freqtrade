@@ -20,3 +20,14 @@ class BacktestTests(unittest.TestCase):
   tag=encode(setup());self.assertFalse(self.s.confirm_trade_entry(PAIR,'limit',1,100.01,'GTC',NOW,tag,'long'));self.s._prices[PAIR][0][1]=99;self.assertFalse(self.s.confirm_trade_entry(PAIR,'limit',1,100,'GTC',NOW,tag,'long'))
  def test_no_forward_runtime_writes(self):
   with patch('pathlib.Path.write_text') as write:self.s._save();self.s._journal(types.SimpleNamespace());write.assert_not_called()
+ def test_fixed_200_risk_is_not_silently_reduced_to_fit_margin(self):
+  self.s._fixed_risk=200
+  stake=self.s.custom_stake_amount(PAIR,NOW,100,100,5,990,2,encode(setup()),'long')
+  self.assertEqual(stake,0);self.assertEqual(self.s._sizing[-1]['decision'],'margin_or_2x_exposure');self.assertGreater(self.s._sizing[-1]['required_margin_USDC'],990)
+ def test_fixed_risk_sizes_at_200_when_account_can_support_it(self):
+  self.s._fixed_risk=200;self.s.wallets.get_total=lambda c:100000
+  tag=encode(setup());stake=self.s.custom_stake_amount(PAIR,NOW,100,100,5,99000,2,tag,'long')
+  self.assertGreater(stake,0);self.assertLessEqual(self.s._sizing[-1]['rounded_risk_USDC'],200)
+  self.assertTrue(self.s.confirm_trade_entry(PAIR,'limit',stake*2/100,100,'GTC',NOW,tag,'long'))
+ def test_fixed_risk_keeps_original_loss_guard(self):
+  self.s._fixed_risk=200;self.assertTrue(self.s._gate(1000,NOW));self.assertFalse(self.s._gate(800,NOW))

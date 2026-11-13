@@ -76,3 +76,36 @@ august_m1 is 2026-08-12 to 2026-08-31 23:45 UTC. Since periods differ, PnL diffe
 cannot be attributed solely to M1 versus M15 resolution. Do not run Hyperopt on
 the same verification period to claim new out-of-sample evidence. No strategy
 promotion or real-money deployment follows from these results.
+
+## Same-period review and requested fixed risk
+
+The execution comparison uses the same August source, M15 signals, timerange,
+fees, starting wallet and portfolio rules, changing only the detail timeframe:
+
+```
+.venv/bin/python xenon/run_backtest.py --dataset august_m1 --coarse
+.venv/bin/python xenon/run_backtest.py --dataset august_m1 --coarse --fixed-risk 200
+.venv/bin/python xenon/run_backtest.py --dataset august_m1 --fixed-risk 200
+.venv/bin/python xenon/run_backtest.py --dataset native_m15 --fixed-risk 200
+.venv/bin/python xenon/compare_backtests.py
+```
+
+Fixed risk is a separate historical sizing scenario, not a detector variant or
+an active-account change. It sizes to at most 200 USDC of planned stop loss
+including frozen estimated costs, after downward quantity rounding. The scenario
+uses a two-order aggregate budget of 400 USDC; it retains the 2x leverage and
+gross exposure cap, available margin, daily loss and peak drawdown guards. It
+does not silently downsize to a different risk when the requested order cannot
+fit. With the 1000 USDC wallet all tested 200 USDC orders are rejected for margin
+or exposure. Raw sizing attempts include retries of the same tag.
+
+The default, without --fixed-risk, continues to use the original 0.5% per-order
+and 1% aggregate risk rules. None of these flags affect the forward class.
+
+The same-period baseline has seven identical entry tags: M15 net -8.2639 USDC,
+M1-detail net -8.2563 USDC. The review directory includes a per-trade comparison,
+fourteen SVG execution charts and conditional exit-slippage sensitivities. The
+slippage calculation applies an extra exit cost to fixed observed trades; it
+does not rerun portfolio sizing, risk guards or order matching. It is not a
+native slippage simulation. Outputs: .runtime/backtest/same-period-review/.
+No new holdout or profitability qualification is claimed.

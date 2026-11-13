@@ -1,7 +1,7 @@
 """Historical-only port. Uses same detector and risk; OHLCV is not a book/queue."""
 import bisect,json,math,pathlib,datetime as dt,collections
 from XenonFVG import XenonFVG,decode,risk_unit,planned_rr,ms,FEE
-from fvg_rules import tick,STEP
+from fvg_rules import tick,STEP,META
 class XenonFVGBacktest(XenonFVG):
  def version(self):return 'xenon-fvg-backtest-1'
  def bot_start(self,**kwargs):
@@ -9,11 +9,33 @@ class XenonFVGBacktest(XenonFVG):
   historical=mode=='backtest' or (mode=='util_no_exchange' and self.config.get('xenon_lookahead_audit') is True)
   if not historical or self.config.get('dry_run') is not True or self.config.get('force_entry_enable') is not False:raise RuntimeError('Historical backtest only')
   if abs(float(self.config.get('fee',0))-FEE)>1e-12 and self.config.get('fee')!=2*FEE:raise RuntimeError('Frozen fee or explicit2x stress required')
+  fixed=self.config.get('xenon_fixed_risk_USDC')
+  if fixed is not None and (not math.isfinite(float(fixed)) or float(fixed)<=0):raise RuntimeError('Fixed historical risk must be positive and finite')
+  self._fixed_risk=None if fixed is None else float(fixed);self._sizing=[]
   self._boot_ms=0;self._visual_enabled=False;self._risk={'consumed':[]};self._audit=collections.Counter();self._orders=[]
   data=json.loads(pathlib.Path(self.config['xenon_backtest_opens']).read_text());self._prices=data['prices'];self._price_times={p:[x[0] for x in r] for p,r in self._prices.items()};self._main={p:set(v) for p,v in data['main_times'].items()};self._price_step=data['price_step']
  def _save(self):
   destination=self.config.get('xenon_backtest_audit')
-  if destination and hasattr(self,'_audit'):pathlib.Path(destination).write_text(json.dumps({'counts':dict(self._audit),'orders':self._orders,'risk_state':self._risk},indent=2))
+  if destination and hasattr(self,'_audit'):pathlib.Path(destination).write_text(json.dumps({'counts':dict(self._audit),'orders':self._orders,'risk_state':self._risk,'sizing':self._sizing},indent=2))
+ def _budget(self,equity):return self._fixed_risk if self._fixed_risk is not None else equity*.005
+ def _risk_cap(self,equity):return 2*self._fixed_risk if self._fixed_risk is not None else equity*.01
+ def custom_stake_amount(self,pair,current_time,current_rate,proposed_stake,min_stake,max_stake,leverage,entry_tag,side,**kwargs):
+  if self._fixed_risk is None:return super().custom_stake_amount(pair,current_time,current_rate,proposed_stake,min_stake,max_stake,leverage,entry_tag,side,**kwargs)
+  try:
+   o=decode(entry_tag);eq,trades=self._account(current_time);why=self._setup_block(pair,o,current_time)
+   if why:self._note(pair,'entry_blocked',why,entry_tag);return 0.
+   if not self._gate(eq,current_time):self._note(pair,'entry_blocked','risk_guard',entry_tag);return 0.
+   if entry_tag in self._risk['consumed'] or len(trades)>=2 or planned_rr(o)<1:return 0.
+   unit=risk_unit(o);scale=10**META[pair.split('/')[0]]['szDecimals'];q=math.floor(self._budget(eq)/unit*scale)/scale
+   gross,openrisk=self._reserved(trades);notional=q*o['entry_limit'];stake=notional/leverage
+   why='PASS'
+   if q<=0 or notional<10 or stake<(min_stake or 0):why='minimum_order'
+   elif stake>max_stake or gross+notional>2*eq:why='margin_or_2x_exposure'
+   elif openrisk+q*unit>self._risk_cap(eq)+1e-8:why='open_risk_cap'
+   self._sizing.append({'tag':entry_tag,'pair':pair,'time_ms':ms(current_time),'requested_risk_USDC':self._fixed_risk,'rounded_risk_USDC':q*unit,'equity_USDC':eq,'required_notional_USDC':notional,'required_margin_USDC':stake,'available_margin_USDC':max_stake,'minimum_gross_leverage':notional/eq,'decision':why})
+   self._audit['fixed_sizing:'+why]+=1;self._save()
+   return stake if why=='PASS' else 0.
+  except Exception as e:self._audit['fixed_sizing_error:'+type(e).__name__]+=1;self._save();return 0.
  def _journal(self,trade):pass
  def _price(self,pair,now):
   t=ms(now);rows=self._prices[pair];i=bisect.bisect_right(self._price_times[pair],t)-1
@@ -49,7 +71,7 @@ class XenonFVGBacktest(XenonFVG):
    opening=self._price(pair,current_time)
    if (rate>=opening if side=='long' else rate<=opening):self._audit['marketable_at_open_proxy']+=1;return False
    eq,trades=self._account(current_time);gross,openrisk=self._reserved(trades);loss=amount*risk_unit(o,rate)
-   if not self._gate(eq,current_time) or len(trades)>=2 or loss>eq*.005+1e-8 or gross+amount*rate>2*eq+1e-8 or openrisk+loss>eq*.01+1e-8:self._audit['final_risk_or_capacity']+=1;return False
+   if not self._gate(eq,current_time) or len(trades)>=2 or loss>self._budget(eq)+1e-8 or gross+amount*rate>2*eq+1e-8 or openrisk+loss>self._risk_cap(eq)+1e-8:self._audit['final_risk_or_capacity']+=1;return False
    if o['direction']*(rate-o['stop'])/rate>=.2:self._audit['stop_distance']+=1;return False
    self._risk['consumed'].append(entry_tag);self._orders.append({'tag':entry_tag,'time_ms':ms(current_time),'amount':amount,'rate':rate,'planned_risk_USDC':loss,'equity_USDC':eq});self._save();return True
   except Exception as e:self._audit['placement_error:'+type(e).__name__]+=1;return False
@@ -57,5 +79,4 @@ class XenonFVGBacktest(XenonFVG):
   # LocalTrade is historical; suppress all forward-runtime journal writes.
   super().order_filled(pair,trade,order,current_time,**kwargs)
  def bot_cleanup(self,**kwargs):
-  destination=self.config.get('xenon_backtest_audit')
-  if destination:pathlib.Path(destination).write_text(json.dumps({'counts':dict(self._audit),'orders':self._orders,'risk_state':self._risk},indent=2))
+  self._save()
