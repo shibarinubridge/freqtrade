@@ -1,0 +1,29 @@
+{
+  "scope": "Detector/indicator parity only, not PnL equivalence",
+  "coins": {
+    "BTC": {
+      "candles": 5006,
+      "reference_orders": 7,
+      "eligible_minimum1R_all_taker_costs": 4
+    },
+    "ETH": {
+      "candles": 5006,
+      "reference_orders": 11,
+      "eligible_minimum1R_all_taker_costs": 8
+    },
+    "SOL": {
+      "candles": 4974,
+      "reference_orders": 9,
+      "eligible_minimum1R_all_taker_costs": 7
+    },
+    "HYPE": {
+      "candles": 4981,
+      "reference_orders": 5,
+      "eligible_minimum1R_all_taker_costs": 3
+    }
+  },
+  "checks": 160,
+  "status": "PASS",
+  "unit_tests": 19,
+  "native_sqlite_persistence": "PASS"
+}

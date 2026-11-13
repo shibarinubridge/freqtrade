@@ -1,0 +1,15 @@
+{
+  "reference_sha256": "7e800e8cb8d5c493dea0e53e116ba39634eb46ac144cae6cbf578958b2c83c21",
+  "source_functions": [
+    "tick",
+    "rounding",
+    "detect"
+  ],
+  "metadata_snapshot": {
+    "BTC": 5,
+    "ETH": 4,
+    "SOL": 2,
+    "HYPE": 2
+  },
+  "execution": "Freqtrade forward dry-run v1 is separate from source replay; fees and fills differ."
+}

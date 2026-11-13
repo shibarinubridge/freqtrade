@@ -8,10 +8,11 @@ def prepare():
     if any(k.startswith('FREQTRADE__') for k in os.environ):
         raise RuntimeError('Remove FREQTRADE__ overrides; this launcher uses a fixed dry-run configuration.')
     cfg=json.loads((P/'dry-run.example.json').read_text())
-    assert cfg['dry_run'] is True and cfg['force_entry_enable'] is False
-    assert cfg['exchange']['name']=='hyperliquid' and cfg['strategy']=='XenonObserve'
-    assert cfg['api_server']['listen_ip_address']=='127.0.0.1'
-    assert not any(cfg['exchange'].get(k) for k in ('key','secret','api_key','privateKey','walletAddress'))
+    if cfg['dry_run'] is not True or cfg['force_entry_enable'] is not False:raise RuntimeError('Dry-run only; force entry must remain disabled')
+    if cfg['exchange']['name']!='hyperliquid' or cfg['strategy'] not in {'XenonObserve','XenonFVG'}:raise RuntimeError('Unapproved exchange/strategy')
+    if cfg['strategy']=='XenonFVG' and cfg.get('fee')!=.00045:raise RuntimeError('FVG conservative fee override required')
+    if cfg['api_server']['listen_ip_address']!='127.0.0.1':raise RuntimeError('API must remain on loopback')
+    if any(cfg['exchange'].get(k) for k in ('key','secret','api_key','privateKey','walletAddress')):raise RuntimeError('Wallet authentication is not accepted by this dry-run launcher')
     RUNTIME.mkdir(exist_ok=True,mode=0o700)
     os.chmod(RUNTIME,0o700)
     auth_path=RUNTIME/'api-auth.json'

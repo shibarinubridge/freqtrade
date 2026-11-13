@@ -10,12 +10,12 @@
   "tradable_balance_ratio": 0.99,
   "max_open_trades": 2,
   "timeframe": "15m",
-  "strategy": "XenonObserve",
+  "strategy": "XenonFVG",
   "initial_state": "running",
   "force_entry_enable": false,
   "cancel_open_orders_on_exit": true,
   "unfilledtimeout": {
-    "entry": 15,
+    "entry": 181,
     "exit": 10,
     "unit": "minutes"
   },
@@ -25,7 +25,7 @@
     "order_book_top": 1
   },
   "exit_pricing": {
-    "price_side": "same",
+    "price_side": "other",
     "use_order_book": true,
     "order_book_top": 1
   },
@@ -67,5 +67,7 @@
   "internals": {
     "process_throttle_secs": 5,
     "heartbeat_interval": 60
-  }
+  },
+  "fee": 0.00045,
+  "custom_price_max_distance_ratio": 0.25
 }
