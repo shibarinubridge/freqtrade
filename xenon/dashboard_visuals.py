@@ -1,8 +1,9 @@
 """Read-only strategy drawings and public candles. No execution/control side effects."""
 import concurrent.futures,json,pathlib,time,urllib.request
+from chart_layers import build as chart_context
 NATIVE=pathlib.Path(__file__).resolve().parent/'.runtime/fvg-visual'
 COINS=('BTC','ETH','SOL','HYPE');STEP=900000
-_cache={};_last=0
+_cache={};_last=0;_contexts={}
 
 def public_candles(coin,now):
  try:
@@ -38,6 +39,11 @@ def collect(root=None):
   # native trace exclusively, never this public forming candle.
   for x in market.get('candles',[]):bars[x['t']]=x
   for x in bars.values():x['closed']=x['t']+STEP<=now
+  confirmed=max((t for t in bars if t+STEP<=now),default=0)
+  if _contexts.get(coin,{}).get('confirmed_ms')!=confirmed+STEP:
+   try:contextbars={x['t']:{'t':x['t'],**{k:float(x[k]) for k in ('o','h','l','c','v')}} for x in json.loads((P/'data'/f'{coin}-15m.json').read_text())[-1500:]}
+   except (OSError,ValueError):contextbars={}
+   contextbars.update(bars);_contexts[coin]=chart_context(coin,sorted(contextbars.values(),key=lambda x:x['t']),now)
   raw=shadow.get('positions',{}).get(coin) or shadow.get('pending',{}).get(coin)
-  output[coin]={'analysis':{k:v for k,v in (view or {}).items() if k!='candles'} if view else None,'decisions':decisions,'candles':sorted(bars.values(),key=lambda x:x['t'])[-600:],'market_observed_ms':market.get('observed_ms'),'shadow_plan':raw,'shadow_state':'position' if coin in shadow.get('positions',{}) else 'pending' if coin in shadow.get('pending',{}) else 'waiting'}
+  output[coin]={'analysis':{k:v for k,v in (view or {}).items() if k!='candles'} if view else None,'decisions':decisions,'candles':sorted(bars.values(),key=lambda x:x['t'])[-600:],'market_observed_ms':market.get('observed_ms'),'layers':_contexts[coin],'shadow_plan':raw,'shadow_state':'position' if coin in shadow.get('positions',{}) else 'pending' if coin in shadow.get('pending',{}) else 'waiting'}
  return {'schema':1,'mode':'OBSERVATION_ONLY','observed_ms':now,'timeframe':'15m','coins':output}
