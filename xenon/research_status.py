@@ -7,5 +7,6 @@ def collect():
   worker=json.loads((ROOT/'research-worker.json').read_text());result.update({k:worker[k] for k in ('scheduled','next_run','last_run_confirmed') if k in worker})
   with sqlite3.connect(f'file:{ROOT}/video-intake.sqlite?mode=ro',uri=True) as db:
    result['queue']=dict(db.execute('SELECT state,COUNT(*) FROM jobs GROUP BY state'));result['experiments']=db.execute('SELECT COUNT(*) FROM experiments').fetchone()[0]
+   result['last_run_confirmed']=any(result['queue'].get(k,0)>0 for k in ('analysis_ready','blocked_rules')) or result['experiments']>0
  except (OSError,ValueError,sqlite3.Error):result['status_error']='RESEARCH_STATUS_UNAVAILABLE'
  return result
