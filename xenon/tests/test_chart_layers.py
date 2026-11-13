@@ -9,3 +9,12 @@ class LayerTests(unittest.TestCase):
   rows=self.bars();a=build('TEST',rows,3*STEP+20);rows[-1]['c']=100000;rows[-1]['h']=100001;b=build('TEST',rows,3*STEP+20);self.assertEqual(a,b)
  def test_missing_annual_data_is_not_zero_poc(self):
   q=build('TEST',self.bars(),4*STEP);self.assertEqual(q['poc']['status'],'unavailable');self.assertNotIn('price',q['poc'])
+
+ def test_annual_profile_exposes_missing_coverage_and_proxy_method(self):
+  from unittest.mock import patch
+  import datetime as dt,json,chart_layers
+  start=int(dt.datetime(2026,1,1,tzinfo=dt.timezone.utc).timestamp()*1000)
+  rows=[{'t':start,'step':3600000,'low':100,'high':110,'volume':100},{'t':start+7200000,'step':3600000,'low':100,'high':110,'volume':50}]
+  with patch.object(pathlib.Path,'read_text',return_value=json.dumps({'rows':rows})):
+   q=chart_layers.annual_profile('FIXTURE',start+10800000)
+  self.assertEqual(q['missing_hours'],1);self.assertAlmostEqual(q['coverage'],2/3);self.assertEqual(q['status'],'proxy');self.assertGreaterEqual(q['price'],100);self.assertLessEqual(q['price'],110)
