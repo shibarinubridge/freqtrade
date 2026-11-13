@@ -10,6 +10,7 @@ from pandas import DataFrame
 from freqtrade.strategy import IStrategy,stoploss_from_absolute
 from freqtrade.persistence import Trade
 from fvg_rules import detect,tick,META,STEP
+from fvg_visual import publish as publish_visual,decision as visual_decision
 log=logging.getLogger(__name__)
 FEE=.00045
 SLIP=.0001
@@ -51,14 +52,17 @@ class XenonFVG(IStrategy):
     plot_config={'main_plot':{'fvg_limit':{'color':'#d9a779'},'fvg_stop':{'color':'#d27d7d'},'fvg_target':{'color':'#83b79c'},'xenon_ema20':{'color':'#929da9'}}}
     def version(self):return 'xenon-fvg-dryrun-1'
     def __init__(self,config):
-        super().__init__(config);self._boot_ms=ms(dt.datetime.now(dt.timezone.utc));self._risk={};self._risk_path=pathlib.Path(__file__).resolve().parents[1]/'.runtime/fvg-risk.json'
+        super().__init__(config);self._visual_enabled=False;self._boot_ms=ms(dt.datetime.now(dt.timezone.utc));self._risk={};self._risk_path=pathlib.Path(__file__).resolve().parents[1]/'.runtime/fvg-risk.json'
     def bot_start(self,**kwargs):
         if self.config.get('dry_run') is not True or self.config.get('force_entry_enable') is not False:raise RuntimeError('XenonFVG requires dry-run and no force entry')
         if getattr(self.config.get('runmode'),'value',self.config.get('runmode')) not in ('dry_run',None):raise RuntimeError('Historical backtesting is not the approved execution model for this port')
         if abs(float(self.config.get('fee',0))-FEE)>1e-12:raise RuntimeError('XenonFVG requires its frozen conservative fee override')
         if self._risk_path.exists():self._risk=json.loads(self._risk_path.read_text())
         self._risk.setdefault('consumed',[])
+        self._visual_enabled=getattr(self.config.get('runmode'),'value',self.config.get('runmode'))=='dry_run'
         log.warning('XenonFVG enabled for prospective DRY-RUN only. Risk .5%, min planned net1R, GTC nonmarketable Limit, all-taker fees .045%. Source replay PnL is not transferable.')
+    def _note(self,*args,**kwargs):
+        if self._visual_enabled:visual_decision(*args,**kwargs)
     def _save(self):
         self._risk_path.parent.mkdir(exist_ok=True,mode=0o700);tmp=self._risk_path.with_suffix('.tmp');tmp.write_text(json.dumps(self._risk,indent=2));tmp.replace(self._risk_path)
     def _closed(self,pair,now):
@@ -93,7 +97,12 @@ class XenonFVG(IStrategy):
         df['fvg_direction']=0;df['fvg_tag']=''
         if coin not in META or df.empty:return df
         rows=[{'t':ms(x.date),'end':ms(x.date)+STEP,'o':float(x.open),'h':float(x.high),'l':float(x.low),'c':float(x.close),'v':float(x.volume)} for x in df.itertuples()]
-        events,_=detect(coin,rows);indexes={x['end']:idx for idx,x in zip(df.index,rows)}
+        events,_,view=detect(coin,rows,trace=True)
+        closed=[r for r in rows if r['end']<=ms(dt.datetime.now(dt.timezone.utc))]
+        if self._visual_enabled:
+            if len(closed)!=len(rows):view=detect(coin,closed,trace=True)[2]
+            publish_visual(coin,view,closed,self._boot_ms,self.version())
+        indexes={x['end']:idx for idx,x in zip(df.index,rows)}
         for time,items in events.items():
             for event in items:
                 o=event['order']
@@ -106,18 +115,21 @@ class XenonFVG(IStrategy):
     def populate_exit_trend(self,dataframe,metadata):
         dataframe['exit_long']=0;dataframe['exit_short']=0;return dataframe
     def leverage(self,pair,current_time,current_rate,proposed_leverage,max_leverage,entry_tag,side,**kwargs):return min(2.,max_leverage)
-    def _valid_setup(self,pair,o,now,pending=False):
+    def _setup_block(self,pair,o,now,pending=False):
         time=ms(now)
-        if o['coin']!=pair.split('/')[0]:return False
-        if time<o['signal_time'] or time>=o['expires']:return False
-        if not pending and (o['signal_time']<self._boot_ms or time-o['signal_time']>120000):return False
+        if o['coin']!=pair.split('/')[0]:return 'wrong_pair'
+        if time<o['signal_time']:return 'not_confirmed'
+        if time>=o['expires']:return 'order_expired'
+        if not pending and o['signal_time']<self._boot_ms:return 'before_current_run'
+        if not pending and time-o['signal_time']>120000:return 'signal_stale'
         bars=self._closed(pair,now)
-        if bars.empty:return False
+        if bars.empty:return 'no_closed_candles'
         for x in bars.itertuples():
             if ms(x.date)<o['signal_time']:continue
-            if (x.close<o['old_gap']['lo'] if o['direction']==1 else x.close>o['old_gap']['hi']):return False
-            if (x.high>=o['target'] if o['direction']==1 else x.low<=o['target']):return False
-        return True
+            if (x.close<o['old_gap']['lo'] if o['direction']==1 else x.close>o['old_gap']['hi']):return 'old_fvg_invalidated'
+            if (x.high>=o['target'] if o['direction']==1 else x.low<=o['target']):return 'target_already_reached'
+        return None
+    def _valid_setup(self,pair,o,now,pending=False):return self._setup_block(pair,o,now,pending) is None
     def custom_entry_price(self,pair,trade,current_time,proposed_rate,entry_tag,side,**kwargs):
         try:return decode(entry_tag)['entry_limit']
         except Exception:return proposed_rate
@@ -134,13 +146,18 @@ class XenonFVG(IStrategy):
         try:
             if self.config.get('dry_run') is not True:return 0.
             o=decode(entry_tag);eq,trades=self._account(current_time)
-            if not self._gate(eq,current_time) or not self._valid_setup(pair,o,current_time) or entry_tag in self._risk.get('consumed',[]):return 0.
-            if len(trades)>=2 or planned_rr(o)<1:return 0.
+            why=self._setup_block(pair,o,current_time)
+            if why:self._note(pair,'entry_blocked',why,entry_tag);return 0.
+            if not self._gate(eq,current_time):self._note(pair,'entry_blocked','risk_guard',entry_tag);return 0.
+            if entry_tag in self._risk.get('consumed',[]):self._note(pair,'entry_blocked','setup_already_authorized',entry_tag);return 0.
+            if len(trades)>=2:self._note(pair,'entry_blocked','max_positions',entry_tag);return 0.
+            if planned_rr(o)<1:self._note(pair,'entry_blocked','planned_net_rr_below_1',entry_tag);return 0.
             unit=risk_unit(o);q=math.floor((eq*.005/unit)*10**META[pair.split('/')[0]]['szDecimals'])/10**META[pair.split('/')[0]]['szDecimals']
             gross,openrisk=self._reserved(trades);notional=q*o['entry_limit'];stake=notional/leverage
-            if q<=0 or notional<10 or stake>max_stake or stake<(min_stake or 0) or gross+notional>eq*2 or openrisk+q*unit>eq*.01+1e-9:return 0.
+            if q<=0 or notional<10 or stake>max_stake or stake<(min_stake or 0) or gross+notional>eq*2 or openrisk+q*unit>eq*.01+1e-9:self._note(pair,'entry_blocked','portfolio_or_margin_limit',entry_tag);return 0.
+            self._note(pair,'sizing_approved','risk_budget_passed',entry_tag,{'stake':stake,'risk':q*unit,'planned_rr':planned_rr(o)})
             return stake
-        except Exception as e:log.warning('FVG sizing refused: %s',type(e).__name__);return 0.
+        except Exception as e:self._note(pair,'entry_blocked','sizing_error',entry_tag,{'error_type':type(e).__name__});log.warning('FVG sizing refused: %s',type(e).__name__);return 0.
     def confirm_trade_entry(self,pair,order_type,amount,rate,time_in_force,current_time,entry_tag,side,**kwargs):
         try:
             if self.config.get('dry_run') is not True or self.config.get('force_entry_enable') is not False or order_type!='limit' or time_in_force!='GTC':return False
@@ -150,15 +167,18 @@ class XenonFVG(IStrategy):
             if not self._valid_setup(pair,o,current_time) or entry_tag in self._risk.get('consumed',[]) or planned_rr(o)<1:return False
             book=self.dp.orderbook(pair,1);bid=float(book['bids'][0][0]);ask=float(book['asks'][0][0])
             if not (math.isfinite(bid) and math.isfinite(ask) and 0<bid<=ask):return False
-            if (rate>=ask if side=='long' else rate<=bid):return False
+            if (rate>=ask if side=='long' else rate<=bid):self._note(pair,'entry_blocked','marketable_limit',entry_tag);return False
             eq,trades=self._account(current_time);gross,openrisk=self._reserved(trades);loss=amount*risk_unit(o,rate)
             if not self._gate(eq,current_time) or len(trades)>=2 or loss>eq*.005+1e-8 or gross+amount*rate>2*eq+1e-8 or openrisk+loss>eq*.01+1e-8:return False
             if o['direction']*(rate-o['stop'])/rate>=.2:return False
-            self._risk.setdefault('consumed',[]).append(entry_tag);self._risk['consumed']=self._risk['consumed'][-2000:];self._save();return True
-        except Exception as e:log.warning('FVG placement refused: %s',type(e).__name__);return False
+            self._risk.setdefault('consumed',[]).append(entry_tag);self._risk['consumed']=self._risk['consumed'][-2000:];self._save();self._note(pair,'placement_authorized','await_broker_order_id',entry_tag,{'rate':rate,'amount':amount});return True
+        except Exception as e:self._note(pair,'entry_blocked','placement_error',entry_tag,{'error_type':type(e).__name__});log.warning('FVG placement refused: %s',type(e).__name__);return False
     def check_entry_timeout(self,pair,trade,order,current_time,**kwargs):
-        try:return not self._valid_setup(pair,decode(trade.enter_tag),current_time,pending=True)
-        except Exception:return True
+        try:
+            why=self._setup_block(pair,decode(trade.enter_tag),current_time,pending=True)
+            if why:self._note(pair,'cancel_requested',why,trade.enter_tag)
+            return why is not None
+        except Exception:self._note(pair,'cancel_requested','setup_unavailable',trade.enter_tag);return True
     def adjust_entry_price(self,trade,order,pair,current_time,proposed_rate,current_order_rate,entry_tag,side,**kwargs):return current_order_rate
     def custom_stoploss(self,pair,trade,current_time,current_rate,current_profit,after_fill=False,**kwargs):
         try:return stoploss_from_absolute(decode(trade.enter_tag)['stop'],current_rate,is_short=trade.is_short,leverage=trade.leverage)

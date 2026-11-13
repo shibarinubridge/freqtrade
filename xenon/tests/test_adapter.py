@@ -36,6 +36,11 @@ class AdapterTests(unittest.TestCase):
     def test_snapshot_distinguishes_wallet_from_allocation_and_never_exports_config(self):
         s=FakeClient().snapshot();self.assertEqual(s['wallet_USDC'],1000);self.assertEqual(s['allocated_USDC'],990)
         self.assertNotIn('MUST_NOT_LEAVE_ADAPTER',json.dumps(s));self.assertTrue(s['observer_only']);self.assertEqual(s['closed_count'],0)
+    def test_order_observations_preserve_absence_as_unknown_not_cancelled(self):
+        with tempfile.TemporaryDirectory() as d:
+            path=pathlib.Path(d)/'history.json';trade={'trade_id':7,'pair':'BTC/USDC:USDC','is_open':True,'orders':[{'order_id':'dry_7','status':'open','filled':0}]}
+            s=adapter.remember_orders({'pending_orders':[trade]},path);self.assertTrue(s['observed_order_history'][0]['orders'][0]['currently_reported'])
+            s=adapter.remember_orders({'pending_orders':[]},path);o=s['observed_order_history'][0]['orders'][0];self.assertFalse(o['currently_reported']);self.assertEqual(o['status'],'open');self.assertEqual(o['filled'],0)
     def test_launcher_creates_private_local_auth_and_rejects_environment_override(self):
         with tempfile.TemporaryDirectory() as td:
             p=pathlib.Path(td);(p/'dry-run.example.json').write_text((launcher.P/'dry-run.example.json').read_text())
