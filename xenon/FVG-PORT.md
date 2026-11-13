@@ -60,3 +60,8 @@ The historical +6.33R is never assigned to this new forward account.
 Historical Freqtrade backtesting of this strategy is intentionally refused;
 signal parity and callback invariants are checked separately. This initial
 port is for forward paper only, with no claim of live/partial-fill readiness.
+
+A separate historical-only class is now available: see [FVG-BACKTEST.md](FVG-BACKTEST.md).
+This does not relax the original XenonFVG forward-only guard or change its live
+account. Signal parity and engine-specific execution differences are documented
+and audited independently; historical PnL is never copied into forward equity.
