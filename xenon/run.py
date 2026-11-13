@@ -17,7 +17,7 @@ def prepare(account_id='fvg'):
     if cfg['strategy']=='XenonFVG' and cfg.get('fee')!=.00045:raise RuntimeError('FVG conservative fee override required')
     if cfg['api_server']['listen_ip_address']!='127.0.0.1':raise RuntimeError('API must remain on loopback')
     if any(cfg['exchange'].get(k) for k in ('key','secret','api_key','privateKey','walletAddress')):raise RuntimeError('Wallet authentication is not accepted by this dry-run launcher')
-    runtime.mkdir(exist_ok=True,mode=0o700)
+    runtime.mkdir(parents=True,exist_ok=True,mode=0o700)
     os.chmod(runtime,0o700)
     auth_path=runtime/'api-auth.json'
     if auth_path.exists():auth=json.loads(auth_path.read_text())
@@ -26,6 +26,9 @@ def prepare(account_id='fvg'):
         fd=os.open(auth_path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
         with os.fdopen(fd,'w') as f:json.dump(auth,f)
     cfg['api_server'].update(auth);cfg['api_server']['listen_port']=account['port'];cfg['strategy']=account['strategy'];cfg['xenon_account_id']=account_id;cfg['xenon_runtime_dir']=str(runtime)
+    if account_id=='diagnostic':
+        cfg.update(bot_name='XENON Diagnostic / TEST ONLY',timeframe='1m',stake_amount=20,max_open_trades=1,initial_state='stopped')
+        cfg['entry_pricing']['price_side']='other';cfg['exchange']['pair_whitelist']=['BTC/USDC:USDC']
     cfg['db_url']='sqlite:///'+str(runtime/'trades.dryrun.sqlite')
     # This host supplies a managed CA bundle; keep TLS verification enabled.
     if pathlib.Path('/etc/ssl/certs/ca-certificates.crt').exists():

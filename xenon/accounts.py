@@ -2,6 +2,7 @@
 import pathlib
 ROOT=pathlib.Path(__file__).resolve().parent
 ACCOUNTS={
+ 'diagnostic':{'id':'diagnostic','name':'Diagnostic · TEST','strategy_id':'diagnostic','strategy':'XenonDiagnostic','timeframe':'1m','port':8094,'enabled':True,'diagnostic':True,'runtime':ROOT/'.runtime/accounts/diagnostic','description':'Test tehnic dry-run; nu este performanță de strategie.'},
  'fvg':{'id':'fvg','name':'FVG Core','strategy_id':'fvg','strategy':'XenonFVG','timeframe':'15m','port':8091,'enabled':True,'runtime':ROOT/'.runtime','description':'Sweep · BOS · FVG · CE 50%'},
  'orderblock':{'id':'orderblock','name':'Order Block Lab','strategy_id':'orderblock','strategy':None,'timeframe':'15m','port':8092,'enabled':False,'runtime':ROOT/'.runtime/accounts/orderblock','description':'Neimplementată în Freqtrade: lipsesc portarea Limit MT și testele native.'},
  'amd':{'id':'amd','name':'AMD Lab','strategy_id':'amd-volume','strategy':None,'timeframe':'30m','port':8093,'enabled':False,'runtime':ROOT/'.runtime/accounts/amd','description':'Neimplementată în Freqtrade: profil M1 proxy și reguli de execuție de portat.'}}

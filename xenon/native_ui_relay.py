@@ -20,9 +20,14 @@ class Relay:
         with sqlite3.connect(self.ledger) as db:db.execute('CREATE TABLE IF NOT EXISTS receipts(id TEXT PRIMARY KEY,status TEXT,result TEXT,http_status INTEGER)')
     def execute(self,job):
         method,path=job.get('method'),job.get('path','');id=job.get('id','')
+        client=self.client
+        if '::' in path:
+            account_id,path=path.split('::',1)
+            if account_id!='diagnostic':return {'id':id,'status':403,'data':{'detail':'Unknown account'}}
+            client=Client(account_id=account_id)
         if not allowed(method,path):return {'id':id,'status':403,'data':{'detail':'Endpoint not exposed by the dry-run relay.'}}
         if int(time.time()*1000)>=job.get('deadline_ms',0):return {'id':id,'status':504,'data':{'detail':'Expired before execution; no operation attempted.'}}
-        try:self.client.config()
+        try:client.config()
         except Exception:return {'id':id,'status':503,'data':{'detail':'Hyperliquid dry-run mode is not verified.'}}
         reserved=False
         if method=='POST':
@@ -32,9 +37,9 @@ class Relay:
                     row=db.execute('SELECT status,result,http_status FROM receipts WHERE id=?',(id,)).fetchone()
                     return {'id':id,'status':row[2] or 503,'data':json.loads(row[1]) if row[1] else {'detail':'Previous execution is indeterminate; not repeated.'}}
         try:
-            auth=json.loads(self.client.auth_path.read_text());token=base64.b64encode((auth['username']+':'+auth['password']).encode()).decode()
+            auth=json.loads(client.auth_path.read_text());token=base64.b64encode((auth['username']+':'+auth['password']).encode()).decode()
             body=json.dumps(job.get('body') or {}).encode() if method=='POST' else None
-            req=urllib.request.Request(self.client.api_base+path,method=method,data=body,headers={'Authorization':'Basic '+token,'Content-Type':'application/json'})
+            req=urllib.request.Request(client.api_base+path,method=method,data=body,headers={'Authorization':'Basic '+token,'Content-Type':'application/json'})
             opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
             try:
                 with opener.open(req,timeout=8) as response:status=response.status;raw=response.read(1500001)
