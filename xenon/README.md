@@ -41,7 +41,7 @@ python -m venv .venv
 The launcher rejects `FREQTRADE__*` environment overrides. It uses the inherited
 proxy settings and, when available, the OS CA bundle without disabling TLS
 verification. The managed runtime has an HTTP proxy; async CCXT trusts that
-inherited proxy. Websockets are disabled in this initial integration.
+inherited proxy. Both synchronous Requests and async CCXT honor the managed proxy and CA settings. A mandatory public order-book preflight checks all four pairs before the trading process starts. Websockets are disabled in this initial integration.
 
 `adapter.collect()` produces bounded telemetry for the private dashboard agent;
 `adapter.command()` accepts only `ft_start`, `ft_pause`, `ft_stop`. The dashboard

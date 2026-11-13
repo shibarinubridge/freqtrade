@@ -41,7 +41,7 @@ class AdapterTests(unittest.TestCase):
             p=pathlib.Path(td);(p/'dry-run.example.json').write_text((launcher.P/'dry-run.example.json').read_text())
             with patch.object(launcher,'P',p),patch.object(launcher,'RUNTIME',p/'.runtime'),patch.dict('os.environ',{},clear=True):
                 path=launcher.prepare();cfg=json.loads(path.read_text());self.assertTrue(cfg['dry_run']);self.assertEqual(path.stat().st_mode & 0o777,0o600)
-                self.assertEqual((p/'.runtime/api-auth.json').stat().st_mode & 0o777,0o600);self.assertEqual(cfg['api_server']['listen_ip_address'],'127.0.0.1')
+                self.assertEqual((p/'.runtime/api-auth.json').stat().st_mode & 0o777,0o600);self.assertEqual(cfg['api_server']['listen_ip_address'],'127.0.0.1');self.assertIs(cfg['exchange']['ccxt_config']['requests_trust_env'],True)
             with patch.dict('os.environ',{'FREQTRADE__DRY_RUN':'false'}):
                 with self.assertRaises(RuntimeError):launcher.prepare()
     def test_observer_never_signals_or_confirms_an_entry(self):

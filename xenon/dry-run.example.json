@@ -32,7 +32,8 @@
   "exchange": {
     "name": "hyperliquid",
     "ccxt_config": {
-      "enableRateLimit": true
+      "enableRateLimit": true,
+      "requests_trust_env": true
     },
     "ccxt_async_config": {
       "aiohttp_trust_env": true

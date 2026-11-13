@@ -35,4 +35,6 @@ def prepare():
 
 if __name__=='__main__':
     path=prepare()
+    from check_connection import verify
+    verify(path)
     os.execv(sys.executable,[sys.executable,'-m','freqtrade','trade','--config',str(path),'--userdir',str(P/'user_data'),'--strategy-path',str(P/'strategies'),'--logfile',str(RUNTIME/'freqtrade.log')])
