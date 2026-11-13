@@ -59,3 +59,20 @@ The current session is not permanent hosting and does not guarantee 24/7 uptime.
 The installed dependency snapshot is in `requirements.lock.txt`; upstream
 provenance is in `upstream.json`. Dashboard source is maintained separately in
 the existing Sites project. The fork contains the authoritative local adapter.
+
+## Official FreqUI
+
+The private FreqUI Site uses the upstream 3.3.0 release without changes to its
+JavaScript/CSS bundles. A connection bootstrap preselects this bot. Its browser
+session token is a short-lived gateway token, never the bot's API password.
+`native_ui_relay.py` pulls bounded RPC jobs from that owner-private Site and
+injects local API authentication only for the loopback call.
+
+Monitoring, charts and start/pause/stop are relayed. Force-entry, configuration
+reload, deletions and other mutations are refused. Dry-run is checked against
+the actual local API before each job. POST receipts prevent repeating the same
+job after an uncertain execution. Responses are bounded and authentication
+values are redacted. The gateway advertises HTTP API compatibility 2.19 because
+it does not relay WebSocket subscriptions; native FreqUI continues refreshing
+through HTTP. The real upstream API version is retained in an extension field.
+The trading engine remains Freqtrade 2026.10 and its data is not fabricated.
