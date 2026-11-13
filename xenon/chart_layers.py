@@ -20,7 +20,7 @@ def annual_profile(coin,now):
  _cache[key]=out;return out
 
 def build(coin,rows,now):
- bars=[r for r in rows if r['t']+STEP<=now];levels=[];zones=[];events=[];highs=[];lows=[];prev=None
+ bars=[r for r in rows if r['t']+STEP<=now];levels=[];zones=[];events=[];highs=[];lows=[];prev=None;trend=0
  today=dt.datetime.fromtimestamp(now/1000,NY).date();yesterday=today-dt.timedelta(days=1);monday=today-dt.timedelta(days=today.weekday());prior=monday-dt.timedelta(days=7)
  for label,a,b in [('PD',yesterday,today),('PW',prior,monday),('W',monday,today+dt.timedelta(days=1))]:
   group=[r for r in bars if a<=dt.datetime.fromtimestamp(r['t']/1000,NY).date()<b]
@@ -51,10 +51,13 @@ def build(coin,rows,now):
    level=candidates[-1];price=level['price']
    if (r['h']>price>r['c'] and prev<=price if d==1 else r['l']<price<r['c'] and prev>=price):events.append({'kind':'sweep','direction':-d,'t':t,'known_ms':end,'price':price})
    if d*(prev-price)<=0 and d*(r['c']-price)>0:
-    level['broken']=True;events.append({'kind':'bos','direction':d,'t':t,'known_ms':end,'price':price})
+    level['broken']=True
     atr=statistics.mean(max(b['h']-b['l'],abs(b['h']-bars[max(0,j-1)]['c']),abs(b['l']-bars[max(0,j-1)]['c'])) for j,b in enumerate(bars[max(0,i-13):i+1],start=max(0,i-13)))
+    strong=r['h']-r['l']>=atr and d*(r['c']-r['o'])>=.6*(r['h']-r['l'])
+    kind='mss' if trend==-d and strong else 'bos'
+    events.append({'kind':kind,'direction':d,'t':t,'known_ms':end,'price':price});trend=d
     opposite=[b for b in bars[max(0,i-6):i] if d*(b['c']-b['o'])<0]
     if opposite and gap and gap[0]==d and r['h']-r['l']>=atr and d*(r['c']-r['o'])>=.6*(r['h']-r['l']):
      ob=opposite[-1];lo=min(ob['o'],ob['c']);hi=max(ob['o'],ob['c']);zones.append({'id':f'ob:{end}:{d}','kind':'ob','direction':d,'lo':lo,'hi':hi,'from_ms':ob['t'],'known_ms':end,'invalidation':(lo+hi)/2,'status':'active','label':'OB candidat · BOS+FVG'})
   prev=r['c']
- return {'source':'context_detector_not_trade_signal','confirmed_ms':bars[-1]['t']+STEP if bars else None,'levels':levels,'zones':zones[-60:],'events':events[-60:],'poc':annual_profile(coin,now),'rules':'M15 închis; swing 3+3; OB contextual BOS+FVG+impuls ATR14/corp60%; invalidare OB la close prin MT. Nu califică o intrare.'}
+ return {'source':'context_detector_not_trade_signal','confirmed_ms':bars[-1]['t']+STEP if bars else None,'levels':levels,'zones':zones[-60:],'events':events[-60:],'poc':annual_profile(coin,now),'rules':'M15 închis; swing 3+3; MSS=break opus direcției precedente cu displacement ATR14/corp60%; BOS=alte breakuri;  OB contextual BOS+FVG+impuls ATR14/corp60%; invalidare OB la close prin MT. Nu califică o intrare.'}
