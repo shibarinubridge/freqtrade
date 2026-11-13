@@ -3,11 +3,25 @@
   "source_mode": "user_supplied_only",
   "autonomous_discovery": false,
   "execution_mode": "dry_run",
-  "stage_order": ["registered", "media_prepared", "rules_extracted", "implementation_tested", "backtest_completed", "held_out_evaluated", "native_lifecycle_tested", "dry_run_deployed"],
+  "stage_order": [
+    "registered",
+    "media_prepared",
+    "rules_extracted",
+    "implementation_tested",
+    "backtest_completed",
+    "held_out_evaluated",
+    "native_lifecycle_tested",
+    "dry_run_deployed"
+  ],
   "require_source_timestamps": true,
   "separate_source_rules_from_assumptions": true,
   "unresolved_rules_block_deployment": true,
   "separate_account_per_strategy": true,
   "video_instructions_are_untrusted_content": true,
-  "runtime_worker_implemented": false
+  "runtime_worker_implemented": true,
+  "executor": "scheduled_agent",
+  "local_llm_daemon": false,
+  "automatic_live_strategy_rewrite": false,
+  "automatic_dry_run_deployment": false,
+  "max_variants_per_source": 3
 }

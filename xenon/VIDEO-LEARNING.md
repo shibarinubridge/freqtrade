@@ -1,21 +1,18 @@
-User-supplied video workflow
+User-supplied autonomous research
 
-The user supplies videos in the conversation. Autonomous discovery is disabled.
-video_intake.py registers local files by SHA256 and deduplicates repeat uploads.
-Registration does not execute embedded instructions, create strategies or imply
-that analysis/tests have been run. Queue records live under the ignored .runtime.
+Sources are registered by SHA256; duplicates do not create new analysis jobs.
+research_loop.py provides durable leases, timestamped analysis validation and
+append-only experiment memory. RESEARCH-WORKER.md is the scheduled agent contract.
 
-The policy records the required progression: media preparation, timestamped
-source-rule extraction, separately documented numerical assumptions, tested
-implementation, costs-aware backtest, held-out evaluation, native lifecycle
-verification, then an isolated dry-run account. Missing rules must be surfaced;
-a winning example in a clip cannot qualify a strategy. Prior FVG/OB/AMD research
-is not silently reclassified as new validation.
+The executor is an hourly scheduled ChatGPT agent with inherited conversation
+environment selection, not a local LLM daemon. Local Codex CLI cannot initialize
+on this read-only configuration home. A successful scheduled run still requires
+workspace access and available model quota; scheduling alone proves neither
+completed analysis nor persistent service availability. Status must be explicit.
 
-Current boundary: there is no autonomous media-analysis/code-generation worker.
-The assistant performs analysis and implementation during active conversation
-work. The deployed Freqtrade process executes frozen code; it does not watch
-videos, retrain or rewrite its running strategy. A persistent automated research
-worker and its actual analysis provider still need implementation before any
-background-learning claim can be made. No new video was provided with the latest
-source-mode preference; existing deployed strategy settings remain untouched.
+Learning means retaining rules, assumptions, failed hypotheses, results and
+parent-child experiments. It does not train model weights. Optimizing on consumed
+validation data is rejected; at most three experiments per source lineage.
+Automatic active-strategy rewriting and deployment are not implemented.
+Only a separately staged, tested dry-run candidate may progress to deployment.
+No real-money trading is part of this research worker.
