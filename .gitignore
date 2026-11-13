@@ -122,3 +122,8 @@ target/
 !config_examples/config_freqai.example.json
 
 docker-compose-*.yml
+
+# XENON local runtime: authentication, dry-run ledger and logs.
+xenon/.runtime/
+xenon/user_data/
+xenon/verification.json

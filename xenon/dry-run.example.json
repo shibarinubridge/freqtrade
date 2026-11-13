@@ -1,0 +1,71 @@
+{
+  "$schema": "https://schema.freqtrade.io/schema.json",
+  "bot_name": "CALM XENON / Freqtrade",
+  "dry_run": true,
+  "dry_run_wallet": 1000,
+  "trading_mode": "futures",
+  "margin_mode": "isolated",
+  "stake_currency": "USDC",
+  "stake_amount": 100,
+  "tradable_balance_ratio": 0.99,
+  "max_open_trades": 2,
+  "timeframe": "15m",
+  "strategy": "XenonObserve",
+  "initial_state": "running",
+  "force_entry_enable": false,
+  "cancel_open_orders_on_exit": true,
+  "unfilledtimeout": {
+    "entry": 15,
+    "exit": 10,
+    "unit": "minutes"
+  },
+  "entry_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1
+  },
+  "exit_pricing": {
+    "price_side": "same",
+    "use_order_book": true,
+    "order_book_top": 1
+  },
+  "exchange": {
+    "name": "hyperliquid",
+    "ccxt_config": {
+      "enableRateLimit": true
+    },
+    "ccxt_async_config": {
+      "aiohttp_trust_env": true
+    },
+    "enable_ws": false,
+    "pair_whitelist": [
+      "BTC/USDC:USDC",
+      "ETH/USDC:USDC",
+      "SOL/USDC:USDC",
+      "HYPE/USDC:USDC"
+    ],
+    "pair_blacklist": []
+  },
+  "pairlists": [
+    {
+      "method": "StaticPairList"
+    }
+  ],
+  "telegram": {
+    "enabled": false,
+    "token": "",
+    "chat_id": ""
+  },
+  "api_server": {
+    "enabled": true,
+    "listen_ip_address": "127.0.0.1",
+    "listen_port": 8091,
+    "verbosity": "error",
+    "enable_openapi": false,
+    "CORS_origins": []
+  },
+  "internals": {
+    "process_throttle_secs": 5,
+    "heartbeat_interval": 60
+  }
+}

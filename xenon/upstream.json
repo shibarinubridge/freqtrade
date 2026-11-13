@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/freqtrade/freqtrade",
+  "branch": "stable",
+  "commit": "4cf0351e08d26e96a6429ef48103b726bb230cf8",
+  "installed_version": "2026.10",
+  "integration_branch": "xenon-command-center"
+}
