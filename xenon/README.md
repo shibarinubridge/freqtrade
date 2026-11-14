@@ -85,7 +85,7 @@ The trading engine remains Freqtrade 2026.10 and its data is not fabricated.
 The separate `lens` account ports AI Agent Lens to Python using public
 Hyperliquid candles, without a TradingView account or webhook. It starts
 paused, with its own virtual wallet/database/API and the requested fixed
-200-USDC risk subject to margin and 2x exposure limits. XENON exposes explained
+900-USDC margin at 5x, with a 200-USDC planned-stop-risk cap and one position at a time. XENON exposes explained
 scores, opt-in chart layers, packet export and account-scoped controls; FreqUI
 opens it with `?bot=lens`. See [LENS.md](LENS.md) for source attribution,
 execution differences, causal precision correction, tests and negative results.

@@ -217,6 +217,40 @@ class LensNativeTests(unittest.TestCase):
         self.assertEqual(config['strategy'],'XenonLens');self.assertEqual(config['initial_state'],'paused')
         self.assertEqual(config['xenon_lens_risk_USDC'],200);self.assertEqual(config['api_server']['listen_port'],8095)
         self.assertEqual(config['order_types']['entry'],'market');self.assertIn(str(runtime),config['db_url'])
+        self.assertEqual(config['xenon_lens_margin_USDC'],900);self.assertEqual(config['xenon_lens_leverage'],5);self.assertEqual(config['max_open_trades'],1)
+
+    def fixed_margin_profile(self):
+        config=self.s.config|{'xenon_lens_margin_USDC':900,'xenon_lens_leverage':5}
+        self.s=XenonLens(config);self.s.bot_start();self.s._account=lambda:(1000.,[],0.,0.)
+
+    def test_900_margin_5x_is_4500_notional_and_risk_is_not_900(self):
+        self.fixed_margin_profile()
+        self.assertEqual(self.s.leverage(PAIR,NOW,100,1,20,self.tag,'long'),5)
+        stake=self.s.custom_stake_amount(PAIR,NOW,100,100,5,990,5,self.tag,'long')
+        self.assertAlmostEqual(stake,900);q=stake*5/100
+        self.assertAlmostEqual(q*100,4500);self.assertLess(q*unit_risk(decode(self.tag),100),200)
+        self.assertTrue(self.confirm(amount=q));self.assertFalse(self.confirm(amount=q+1))
+
+    def test_fixed_margin_refuses_wide_stop_or_missing_margin_instead_of_reducing_order(self):
+        self.fixed_margin_profile()
+        wide=encode('BTC',1,T,100,95,115)
+        self.assertEqual(self.s.custom_stake_amount(PAIR,NOW,100,100,5,990,5,wide,'long'),0)
+        self.assertEqual(self.s._audit[-1]['reason'],'fixed_margin_exceeds_risk_cap')
+        self.assertEqual(self.s.custom_stake_amount(PAIR,NOW,100,100,5,899,5,self.tag,'long'),0)
+        self.assertEqual(self.s._audit[-1]['reason'],'margin_or_exposure_limit')
+
+    def test_fixed_margin_allows_only_one_position_and_requires_requested_leverage(self):
+        self.fixed_margin_profile()
+        self.assertEqual(self.s.custom_stake_amount(PAIR,NOW,100,100,5,990,3,self.tag,'long'),0)
+        self.assertEqual(self.s._audit[-1]['reason'],'requested_leverage_unavailable')
+        self.s._account=lambda:(1000.,[object()],0.,0.)
+        self.assertEqual(self.s.custom_stake_amount(PAIR,NOW,100,100,5,990,5,self.tag,'long'),0)
+
+    def test_900_margin_profile_can_authorize_a_short(self):
+        self.fixed_margin_profile();tag=encode('BTC',-1,T,100,101,97)
+        stake=self.s.custom_stake_amount(PAIR,NOW,100,100,5,990,5,tag,'short')
+        self.assertAlmostEqual(stake,900)
+        self.assertTrue(self.s.confirm_trade_entry(PAIR,'market',stake*5/100,100,'GTC',NOW,tag,'short'))
 
 
 if __name__=='__main__':unittest.main()

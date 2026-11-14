@@ -6,6 +6,34 @@ blob is `cd5a2b56b93e2e79107606269587d79fa4c96341`. No TradingView account,
 webhook, paid subscription or TradingView data session is required. XENON's
 existing charting-library attribution stays intact.
 
+## Current requested execution profile (14 November 2026)
+
+The paper account now uses **900 USDC margin at 5x**, approximately 4,500 USDC
+notional after downward quantity rounding, on its existing 1,000-USDC wallet.
+At most one position is allowed. The earlier 200-USDC fixed-risk sizing is
+replaced by a **200-USDC maximum planned loss at the stop**, not a loss target.
+A 1% stop on 4,500 USDC notional is approximately 45 USDC price risk plus costs.
+Unavailable margin, unavailable requested leverage, invalid geometry or a planned
+loss above 200 USDC refuses the order without silently resizing it. Stop/target,
+confirmed-signal, daily-loss and peak-drawdown rules remain unchanged.
+
+This profile has version suffix `-fixed-margin`; the earlier `xenon-lens-2`
+execution evidence below is a separate legacy profile. It is not pooled with the
+new forward evaluation. Historical reproduction:
+
+```
+.venv/bin/python xenon/run_lens_backtest.py --dataset august_m1 --risk 200 --margin 900 --leverage 5
+.venv/bin/python xenon/run_lens_backtest.py --dataset native_m15 --risk 200 --margin 900 --leverage 5
+```
+
+These exploratory runs executed 2 trades / +18.3073 USDC (August, M1 detail) and
+1 trade / -35.9326 USDC (October–November, M15). Margin was 899.78–899.97 USDC,
+leverage 5x. The existing peak drawdown protection suspended later entries in
+both runs. This proves sizing/native order flow, not profitability. The previous
+lookahead report is not relabelled as validation of the new execution profile.
+The default launcher still starts paused; active state is controlled through the
+verified local API/XENON. FVG configuration and process remain separate.
+
 ## Architecture
 
 Hyperliquid OHLCV → `strategies/lens_rules.py` → `ai-agent-lens/v1` JSON packets
@@ -64,19 +92,24 @@ calculation cache; historical observed packets are not retroactively rewritten.
   snapshots bounded. A correction or different rolling warmup may alter public
   context versus native analysis; their provenance remains separate.
 
-## Independent paper account
+## Independent paper account and shared safeguards
 
 ```
 .venv/bin/python xenon/run.py --account lens
 ```
 
-This creates only the Lens runtime/config/auth and SQL database. It starts in
-`paused`, with a 1,000 USDC virtual wallet, fixed requested risk **200 USDC** per
-trade, at most two trades, aggregate planned risk ≤400 USDC and gross notional
-and leverage ≤2×. Quantity rounds down to the exchange precision. Insufficient
-margin/exposure refuses the order; risk is never silently reduced to fit it.
-The stop budget includes frozen 0.045% fees each side and a 1 bp adverse-stop
-reserve; this is not a guarantee that realized loss cannot exceed the budget.
+This creates only the Lens runtime/config/auth and SQL database. It starts
+`paused`, on the existing 1,000-USDC virtual wallet, with 900 USDC requested
+margin at 5x, maximum one position and a 200-USDC planned-stop-loss cap. Gross
+exposure is capped at 5x equity. Quantity rounds down to exchange precision;
+insufficient margin or excess planned loss refuses the order instead of silently
+reducing the requested margin. Stop budgets include frozen 0.045% fees each side
+and a 1 bp adverse-stop reserve; realized losses can still differ under gaps,
+slippage and funding.
+
+Legacy backtest configs without `xenon_lens_margin_USDC` retain fixed-risk sizing,
+default 2x exposure/leverage and two positions. They are separate experiments,
+not the current launcher profile.
 
 Daily loss gate 1.5% (Bucharest date) and peak drawdown gate 2.5% remain active.
 Peak drawdown suspension persists through restart. A large planned-risk trade

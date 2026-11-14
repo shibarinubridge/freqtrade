@@ -2,7 +2,7 @@
 import pathlib
 ROOT=pathlib.Path(__file__).resolve().parent
 ACCOUNTS={
- 'lens':{'id':'lens','name':'AI Agent Lens · Lab','strategy_id':'lens','strategy':'XenonLens','timeframe':'15m','port':8095,'enabled':True,'experimental':True,'risk_per_trade_USDC':200,'runtime':ROOT/'.runtime/accounts/lens','description':'Port Python independent · confluence EMA/RSI/ADX · risc cerut 200 USDC, limitat de marjă și expunere 2×.'},
+ 'lens':{'id':'lens','name':'AI Agent Lens · Lab','strategy_id':'lens','strategy':'XenonLens','timeframe':'15m','port':8095,'enabled':True,'experimental':True,'risk_per_trade_USDC':200,'margin_per_trade_USDC':900,'leverage':5,'max_positions':1,'sizing_mode':'fixed_margin','risk_mode':'planned_cap_USDC','runtime':ROOT/'.runtime/accounts/lens','description':'Dry-run · marjă 900 USDC · levier 5× · maximum o poziție · risc planificat la stop plafonat la 200 USDC.'},
  'diagnostic':{'id':'diagnostic','name':'Diagnostic · TEST','strategy_id':'diagnostic','strategy':'XenonDiagnostic','timeframe':'1m','port':8094,'enabled':True,'diagnostic':True,'runtime':ROOT/'.runtime/accounts/diagnostic','description':'Test tehnic dry-run; nu este performanță de strategie.'},
  'fvg':{'id':'fvg','name':'FVG Core','strategy_id':'fvg','strategy':'XenonFVG','timeframe':'15m','port':8091,'enabled':True,'runtime':ROOT/'.runtime','description':'Sweep · BOS · FVG · CE 50%'},
  'orderblock':{'id':'orderblock','name':'Order Block Lab','strategy_id':'orderblock','strategy':None,'timeframe':'15m','port':8092,'enabled':False,'runtime':ROOT/'.runtime/accounts/orderblock','description':'Neimplementată în Freqtrade: lipsesc portarea Limit MT și testele native.'},

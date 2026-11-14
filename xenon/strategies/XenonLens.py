@@ -65,7 +65,7 @@ class XenonLens(IStrategy):
     order_time_in_force={'entry':'GTC','exit':'GTC'}
     plot_config={'main_plot':{k:{'color':color} for k,color in [('lens_entry','#d9ac77'),('lens_stop','#db7777'),('lens_target','#52b99b'),('lens_ema20','#66bba9'),('lens_ema50','#d9ac77'),('lens_ema200','#a698cd')]},'subplots':{'Lens confluence':{'lens_long_score':{'color':'#52b99b'},'lens_short_score':{'color':'#db7777'}}}}
 
-    def version(self):return VERSION
+    def version(self):return VERSION+'-fixed-margin' if self.config.get('xenon_lens_margin_USDC') is not None else VERSION
 
     def bot_start(self,**kwargs):
         mode=getattr(self.config.get('runmode'),'value',self.config.get('runmode'))
@@ -76,6 +76,12 @@ class XenonLens(IStrategy):
         self._historical=mode=='backtest' or audit
         self._budget=float(self.config.get('xenon_lens_risk_USDC',200))
         if not math.isfinite(self._budget) or self._budget<=0:raise RuntimeError('Invalid fixed Lens risk')
+        self._leverage=float(self.config.get('xenon_lens_leverage',2))
+        self._margin=self.config.get('xenon_lens_margin_USDC')
+        if self._margin is not None:self._margin=float(self._margin)
+        if not math.isfinite(self._leverage) or not 1<=self._leverage<=5:raise RuntimeError('Lens leverage must be within 1–5x')
+        if self._margin is not None and (not math.isfinite(self._margin) or self._margin<=0):raise RuntimeError('Invalid Lens margin')
+        self._slots=1 if self._margin is not None else 2
         self._runtime=pathlib.Path(self.config.get('xenon_runtime_dir',''))
         if not self._historical and ('lens' not in self._runtime.parts or not self._runtime.is_absolute()):raise RuntimeError('Lens needs its own absolute runtime directory')
         self._state={'consumed':[]};self._audit=[];self._boot=0 if self._historical else ms(dt.datetime.now(dt.timezone.utc))
@@ -128,7 +134,7 @@ class XenonLens(IStrategy):
             if len(closed):
                 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]))
                 from lens_context import save_packet, chart_rows, atomic
-                value=packet(closed,symbol='HYPERLIQUID:'+coin);value['xenon'].update(observation_source='freqtrade_lens_runtime',boot_ms=self._boot,observed_ms=ms(dt.datetime.now(dt.timezone.utc)))
+                value=packet(closed,symbol='HYPERLIQUID:'+coin);value['xenon'].update(version=self.version(),execution_profile={'margin_USDC':self._margin,'leverage':self._leverage,'risk_cap_USDC':self._budget,'max_positions':self._slots},observation_source='freqtrade_lens_runtime',boot_ms=self._boot,observed_ms=ms(dt.datetime.now(dt.timezone.utc)))
                 save_packet(self._runtime/'lens-packets',coin,value)
                 atomic(self._runtime/'lens-packets/chart'/f'{coin}.json',chart_rows(closed))
         return out
@@ -144,7 +150,7 @@ class XenonLens(IStrategy):
         dataframe['exit_long']=0;dataframe['exit_short']=0
         return dataframe
 
-    def leverage(self,pair,current_time,current_rate,proposed_leverage,max_leverage,entry_tag,side,**kwargs):return min(2.,max_leverage)
+    def leverage(self,pair,current_time,current_rate,proposed_leverage,max_leverage,entry_tag,side,**kwargs):return min(float(self.config.get('xenon_lens_leverage',2)),max_leverage)
 
     def _account(self):
         equity=float(self.wallets.get_total(self.config['stake_currency']))
@@ -193,13 +199,16 @@ class XenonLens(IStrategy):
             o=decode(entry_tag)
             if not self._valid(pair,o,current_time,current_rate,side):self._note(pair,'stale_or_invalid_geometry',current_time,tag=entry_tag);return 0.
             eq,trades,gross,reserved=self._account()
-            if not self._gate(eq,current_time) or entry_tag in self._state['consumed'] or len(trades)>=2:self._note(pair,'risk_guard_or_capacity',current_time,tag=entry_tag);return 0.
+            if not self._gate(eq,current_time) or entry_tag in self._state['consumed'] or len(trades)>=self._slots:self._note(pair,'risk_guard_or_capacity',current_time,tag=entry_tag);return 0.
             scale=10**META[o['coin']]['szDecimals'];unit=unit_risk(o,current_rate)
-            q=math.floor(self._budget/unit*scale)/scale;notional=q*current_rate;stake=notional/leverage
+            if self._margin is not None and leverage!=self._leverage:self._note(pair,'requested_leverage_unavailable',current_time,tag=entry_tag);return 0.
+            desired_q=self._budget/unit if self._margin is None else self._margin*leverage/current_rate
+            q=math.floor(desired_q*scale)/scale;notional=q*current_rate;stake=notional/leverage
             reason='sizing_approved'
             if q<=0 or notional<10 or stake<(min_stake or 0):reason='minimum_order'
-            elif stake>max_stake or gross+notional>2*eq:reason='margin_or_2x_exposure'
-            elif reserved+q*unit>2*self._budget+1e-8:reason='open_risk_cap'
+            elif stake>max_stake or gross+notional>self._leverage*eq:reason='margin_or_2x_exposure' if self._leverage==2 else 'margin_or_exposure_limit'
+            elif q*unit>self._budget+1e-8:reason='fixed_margin_exceeds_risk_cap'
+            elif reserved+q*unit>self._slots*self._budget+1e-8:reason='open_risk_cap'
             self._note(pair,reason,current_time,tag=entry_tag,risk_USDC=q*unit,requested_risk_USDC=self._budget,required_margin_USDC=stake,available_margin_USDC=max_stake,minimum_gross_leverage=notional/eq)
             return stake if reason=='sizing_approved' else 0.
         except Exception as e:self._note(pair,'sizing_error',current_time,error_type=type(e).__name__);return 0.
@@ -211,7 +220,8 @@ class XenonLens(IStrategy):
             if not math.isfinite(amount) or not math.isfinite(rate) or amount<=0 or rate<=0 or amount*rate<10:return False
             if not self._valid(pair,o,current_time,rate,side):return False
             eq,trades,gross,reserved=self._account();loss=amount*unit_risk(o,rate)
-            if entry_tag in self._state['consumed'] or not self._gate(eq,current_time) or len(trades)>=2 or loss>self._budget+1e-8 or reserved+loss>2*self._budget+1e-8 or gross+amount*rate>2*eq+1e-8:return False
+            if entry_tag in self._state['consumed'] or not self._gate(eq,current_time) or len(trades)>=self._slots or loss>self._budget+1e-8 or reserved+loss>self._slots*self._budget+1e-8 or gross+amount*rate>self._leverage*eq+1e-8:return False
+            if self._margin is not None and amount*rate>self._margin*self._leverage+1e-8:return False
             if o['direction']*(rate-o['stop'])/rate>=.2:return False
             self._state['consumed'].append(entry_tag);self._state['consumed']=self._state['consumed'][-4000:];self._note(pair,'placement_authorized',current_time,tag=entry_tag,risk_USDC=loss)
             return True

@@ -30,7 +30,7 @@ def prepare(account_id='fvg'):
         cfg.update(bot_name='XENON Diagnostic / TEST ONLY',timeframe='1m',stake_amount=20,max_open_trades=1,initial_state='stopped')
         cfg['entry_pricing']['price_side']='other';cfg['exchange']['pair_whitelist']=['BTC/USDC:USDC']
     if account_id=='lens':
-        cfg.update(bot_name='XENON Lens / EXPERIMENTAL DRY-RUN',initial_state='paused',xenon_lens_risk_USDC=200,stake_amount='unlimited')
+        cfg.update(bot_name='XENON Lens / EXPERIMENTAL DRY-RUN',initial_state='paused',xenon_lens_risk_USDC=200,xenon_lens_margin_USDC=900,xenon_lens_leverage=5,max_open_trades=1,stake_amount='unlimited')
         cfg['order_types']={'entry':'market','exit':'market','stoploss':'market','stoploss_on_exchange':False}
         cfg['entry_pricing']['price_side']='other'
     cfg['db_url']='sqlite:///'+str(runtime/'trades.dryrun.sqlite')
