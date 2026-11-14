@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/roan-maverick/tradingview-indicator-for-ai-agents",
+  "upstream_pine_blob": "cd5a2b56b93e2e79107606269587d79fa4c96341",
+  "retrieved_utc": "2026-11-14T01:03:03.090833+00:00",
+  "files": {
+    "ai-agent-lens.pine": "bb3e57fb887752d5ce772eadfce2c3a4aa72d027efa17cfbe735e681d9660087",
+    "LICENSE": "24f2fac1a37bfb19f5bfe5e5810766362f481150cced7ea11c407c94c958e720"
+  },
+  "numeric_pine_parity": "UNVERIFIED_NO_PINE_ORACLE",
+  "execution": "Separate Freqtrade port, not source tracker PnL"
+}

@@ -18,12 +18,19 @@ class Relay:
     def __init__(self,auth_path=None,ledger=None):
         self.client=Client(auth_path);self.ledger=pathlib.Path(ledger) if ledger else P/'.runtime/native-relay.sqlite'
         with sqlite3.connect(self.ledger) as db:db.execute('CREATE TABLE IF NOT EXISTS receipts(id TEXT PRIMARY KEY,status TEXT,result TEXT,http_status INTEGER)')
+    def health_config(self):
+        # Transport health must not tie Lens availability to the FVG process.
+        # Every individual RPC still revalidates its own actual account below.
+        for account_id in ('fvg','lens','diagnostic'):
+            try:return (self.client if account_id=='fvg' else Client(account_id=account_id)).config()
+            except Exception:continue
+        raise ModeError('No verified local dry-run account is available.')
     def execute(self,job):
         method,path=job.get('method'),job.get('path','');id=job.get('id','')
         client=self.client
         if '::' in path:
             account_id,path=path.split('::',1)
-            if account_id!='diagnostic':return {'id':id,'status':403,'data':{'detail':'Unknown account'}}
+            if account_id not in {'diagnostic','lens'}:return {'id':id,'status':403,'data':{'detail':'Unknown account'}}
             client=Client(account_id=account_id)
         if not allowed(method,path):return {'id':id,'status':403,'data':{'detail':'Endpoint not exposed by the dry-run relay.'}}
         if int(time.time()*1000)>=job.get('deadline_ms',0):return {'id':id,'status':504,'data':{'detail':'Expired before execution; no operation attempted.'}}
@@ -70,7 +77,7 @@ class Relay:
                             try:results.append(future.result())
                             except Exception:results.append({'id':pending[future],'status':502,'data':{'detail':'Local worker failed.'}})
                             del pending[future]
-                    cfg=self.client.config()
+                    cfg=self.health_config()
                     outgoing=[];size=0
                     for r in results:
                         size+=len(json.dumps(r))

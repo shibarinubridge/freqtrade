@@ -1,0 +1,27 @@
+{
+  "version": "xenon-lens-2",
+  "qualification": "EXPERIMENTAL_DRY_RUN_ONLY",
+  "pine_numeric_parity": "UNVERIFIED_NO_PINE_ORACLE",
+  "official_lookahead": {
+    "has_bias": false,
+    "total_signals": 10,
+    "biased_entries": 0,
+    "biased_exits": 0,
+    "biased_indicators": ""
+  },
+  "native_precision_prefix_checks": 14,
+  "python_unit_tests": 71,
+  "native_sql_restart_lifecycle": "PASS",
+  "fresh_holdout_evaluated": false,
+  "checked_utc": "2026-11-14T01:41:29.308105+00:00",
+  "source_sha256": {
+    "strategies/lens_rules.py": "6c760c4083cd5402452f691ea323357cc9028236e2c314b24e65f9cd63007f06",
+    "strategies/XenonLens.py": "1012a4dcc1af74f28d90612bdfc26cb4b18d1fd1a603ea91b2c095e7a45acaae"
+  },
+  "limitations": [
+    "No certified Pine numeric parity",
+    "Historical periods previously examined",
+    "No profitability qualification",
+    "No broker fill claim from reference packets"
+  ]
+}

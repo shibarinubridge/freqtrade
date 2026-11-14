@@ -79,3 +79,13 @@ values are redacted. The gateway advertises HTTP API compatibility 2.19 because
 it does not relay WebSocket subscriptions; native FreqUI continues refreshing
 through HTTP. The real upstream API version is retained in an extension field.
 The trading engine remains Freqtrade 2026.10 and its data is not fabricated.
+
+## AI Agent Lens
+
+The separate `lens` account ports AI Agent Lens to Python using public
+Hyperliquid candles, without a TradingView account or webhook. It starts
+paused, with its own virtual wallet/database/API and the requested fixed
+200-USDC risk subject to margin and 2x exposure limits. XENON exposes explained
+scores, opt-in chart layers, packet export and account-scoped controls; FreqUI
+opens it with `?bot=lens`. See [LENS.md](LENS.md) for source attribution,
+execution differences, causal precision correction, tests and negative results.

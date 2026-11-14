@@ -21,4 +21,17 @@ class NativeRelayTests(unittest.TestCase):
    with patch.object(r.client,'config',return_value={'dry_run':True}),patch('urllib.request.build_opener',return_value=opener):
     one=r.execute(job);two=r.execute(job)
    self.assertEqual(one,two);self.assertEqual(opener.open.call_count,1);self.assertNotIn('example-password-do-not-export',json.dumps(one))
+ def test_lens_scope_selects_only_its_own_verified_client(self):
+  with tempfile.TemporaryDirectory() as d:
+   r=Relay(ledger=pathlib.Path(d)/'relay.db');job={'id':'lens-read','method':'GET','path':'lens::status','deadline_ms':int(time.time()*1000)+10000}
+   with patch('native_ui_relay.Client') as client:
+    client.return_value.config.side_effect=ModeError()
+    self.assertEqual(r.execute(job)['status'],503);client.assert_called_once_with(account_id='lens')
+   job['path']='unknown::status';self.assertEqual(r.execute(job)['status'],403)
+ def test_lens_transport_survives_an_offline_fvg_process(self):
+  with tempfile.TemporaryDirectory() as d:
+   r=Relay(ledger=pathlib.Path(d)/'relay.db')
+   with patch.object(r.client,'config',side_effect=ConnectionError()),patch('native_ui_relay.Client') as client:
+    client.return_value.config.return_value={'dry_run':True,'state':'paused','strategy':'XenonLens'}
+    self.assertEqual(r.health_config()['strategy'],'XenonLens');client.assert_called_once_with(account_id='lens')
 if __name__=='__main__':unittest.main()

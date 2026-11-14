@@ -1,9 +1,10 @@
 """Read-only strategy drawings and public candles. No execution/control side effects."""
 import concurrent.futures,json,pathlib,time,urllib.request
 from chart_layers import build as chart_context
+from lens_context import collect as collect_lens
 NATIVE=pathlib.Path(__file__).resolve().parent/'.runtime/fvg-visual'
 COINS=('BTC','ETH','SOL','HYPE');STEP=900000
-_cache={};_last=0;_contexts={}
+_cache={};_last=0;_contexts={};_source_bars={}
 
 def public_candles(coin,now):
  try:
@@ -43,7 +44,9 @@ def collect(root=None):
   if _contexts.get(coin,{}).get('confirmed_ms')!=confirmed+STEP:
    try:contextbars={x['t']:{'t':x['t'],**{k:float(x[k]) for k in ('o','h','l','c','v')}} for x in json.loads((P/'data'/f'{coin}-15m.json').read_text())[-1500:]}
    except (OSError,ValueError):contextbars={}
-   contextbars.update(bars);_contexts[coin]=chart_context(coin,sorted(contextbars.values(),key=lambda x:x['t']),now)
+   contextbars.update(bars);_source_bars[coin]=sorted(contextbars.values(),key=lambda x:x['t']);_contexts[coin]=chart_context(coin,_source_bars[coin],now)
+  try:lens=collect_lens(coin,_source_bars.get(coin,sorted(bars.values(),key=lambda x:x['t'])),now)
+  except Exception as error:lens={'status':'unavailable','reason':'Calcul Lens indisponibil: '+type(error).__name__}
   raw=shadow.get('positions',{}).get(coin) or shadow.get('pending',{}).get(coin)
-  output[coin]={'analysis':{k:v for k,v in (view or {}).items() if k!='candles'} if view else None,'decisions':decisions,'candles':sorted(bars.values(),key=lambda x:x['t'])[-600:],'market_observed_ms':market.get('observed_ms'),'layers':_contexts[coin],'shadow_plan':raw,'shadow_state':'position' if coin in shadow.get('positions',{}) else 'pending' if coin in shadow.get('pending',{}) else 'waiting'}
+  output[coin]={'analysis':{k:v for k,v in (view or {}).items() if k!='candles'} if view else None,'decisions':decisions,'candles':sorted(bars.values(),key=lambda x:x['t'])[-600:],'market_observed_ms':market.get('observed_ms'),'layers':_contexts[coin],'lens':lens,'shadow_plan':raw,'shadow_state':'position' if coin in shadow.get('positions',{}) else 'pending' if coin in shadow.get('pending',{}) else 'waiting'}
  return {'schema':1,'mode':'OBSERVATION_ONLY','observed_ms':now,'timeframe':'15m','coins':output}
